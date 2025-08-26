@@ -236,24 +236,9 @@
         .file-upload {
             margin: 20px 0;
             text-align: center;
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        .file-label {
-            display: inline-block;
-            padding: 12px 25px;
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.1);
             border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .file-label:hover {
-            transform: translateY(-2px);
         }
 
         .table-info {
@@ -344,15 +329,9 @@
                 <button class="search-btn" onclick="performSearch()">Search</button>
             </div>
             
-        <!-- File Upload Section (Optional - for additional files) -->
+                    <!-- Data Status Section -->
             <div class="file-upload">
                 <p><strong>📊 Data Status:</strong> <span id="dataStatus">Loading pre-loaded data...</span></p>
-                <details>
-                    <summary style="cursor: pointer; margin: 10px 0;">📁 Upload Additional Excel Files (Optional)</summary>
-                    <label for="fileInput" class="file-label">📁 Upload Excel Files</label>
-                    <input type="file" id="fileInput" class="file-input" multiple accept=".xlsx,.xls" onchange="handleFileUpload(event)">
-                    <div id="fileStatus" class="file-status hidden"></div>
-                </details>
             </div>
         </div>
 
