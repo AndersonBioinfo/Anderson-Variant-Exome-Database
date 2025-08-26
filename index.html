@@ -154,6 +154,7 @@
             border: 1px solid #e0e0e0;
             border-radius: 10px;
             overflow: hidden;
+            max-height: 600px; /* Set maximum height for scrolling */
         }
 
         .excel-header {
@@ -162,11 +163,21 @@
             padding: 15px 20px;
             font-weight: bold;
             font-size: 18px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .table-container {
+            max-height: 550px;
+            overflow-y: auto;
+            overflow-x: auto;
         }
 
         .excel-table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 600px; /* Ensure table doesn't get too compressed */
         }
 
         .excel-table th,
@@ -174,15 +185,52 @@
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #e0e0e0;
+            white-space: nowrap; /* Prevent text wrapping */
         }
 
         .excel-table th {
             background-color: #f8f9fa;
             font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            border-bottom: 2px solid #dee2e6;
         }
 
         .excel-table tr:hover {
             background-color: #f5f5f5;
+        }
+
+        .excel-table td {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .excel-table td:hover {
+            white-space: normal;
+            max-width: none;
+            word-wrap: break-word;
+        }
+
+        /* Custom scrollbar styling */
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #5a6fd8;
         }
 
         .file-upload {
@@ -206,6 +254,14 @@
 
         .file-label:hover {
             transform: translateY(-2px);
+        }
+
+        .table-info {
+            padding: 10px 20px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 14px;
+            color: #666;
         }
 
         .file-status {
@@ -288,11 +344,15 @@
                 <button class="search-btn" onclick="performSearch()">Search</button>
             </div>
             
-            <!-- File Upload Section -->
+        <!-- File Upload Section (Optional - for additional files) -->
             <div class="file-upload">
-                <label for="fileInput" class="file-label">📁 Upload Excel Files</label>
-                <input type="file" id="fileInput" class="file-input" multiple accept=".xlsx,.xls" onchange="handleFileUpload(event)">
-                <div id="fileStatus" class="file-status hidden"></div>
+                <p><strong>📊 Data Status:</strong> <span id="dataStatus">Loading pre-loaded data...</span></p>
+                <details>
+                    <summary style="cursor: pointer; margin: 10px 0;">📁 Upload Additional Excel Files (Optional)</summary>
+                    <label for="fileInput" class="file-label">📁 Upload Excel Files</label>
+                    <input type="file" id="fileInput" class="file-input" multiple accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+                    <div id="fileStatus" class="file-status hidden"></div>
+                </details>
             </div>
         </div>
 
@@ -360,6 +420,25 @@
         let currentYear = null;
         let currentMonth = null;
         let currentType = null;
+        let dataLoadedCount = 0;
+        let totalDataFiles = 0;
+
+        // Pre-defined data files structure
+        const dataFiles = {
+            '2023': ['2023.json'],
+            '2024': [
+                '2024_January.json', '2024_February.json', '2024_March.json',
+                '2024_April.json', '2024_May.json', '2024_June.json',
+                '2024_July.json', '2024_August.json', '2024_September.json',
+                '2024_October.json', '2024_November.json', '2024_December.json'
+            ],
+            '2025': [
+                '2025_January.json', '2025_February.json', '2025_March.json',
+                '2025_April.json', '2025_May.json', '2025_June.json',
+                '2025_July.json', '2025_August.json', '2025_September.json',
+                '2025_October.json', '2025_November.json', '2025_December.json'
+            ]
+        };
 
         // Navigation functions
         function selectCategory(category) {
@@ -539,27 +618,60 @@
             setTimeout(() => {
                 hideLoading();
                 
-                let key, title;
+                let data = null;
+                let title = '';
                 
                 if (currentYear === '2023') {
-                    // For 2023, just use the year as key (single Excel file)
-                    key = currentYear;
-                    title = `${currentYear} - ${currentType}`;
+                    const key = '2023';
+                    title = `2023 - ${currentType}`;
+                    
+                    if (excelData[key]) {
+                        // Check if data has separate single/couple arrays
+                        if (excelData[key][currentType.toLowerCase()]) {
+                            data = excelData[key][currentType.toLowerCase()];
+                        } else if (Array.isArray(excelData[key])) {
+                            // If it's a flat array, filter by type column (adjust column name as needed)
+                            data = excelData[key].filter(row => {
+                                // Try different possible column names for type identification
+                                const typeColumns = ['type', 'Type', 'category', 'Category', 'group', 'Group'];
+                                for (let col of typeColumns) {
+                                    if (row[col] && row[col].toLowerCase().includes(currentType.toLowerCase())) {
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            });
+                            
+                            // If no type column found, show all data
+                            if (data.length === 0) {
+                                data = excelData[key];
+                            }
+                        } else {
+                            data = excelData[key];
+                        }
+                    }
                 } else {
-                    // For 2024/2025, use month_type format
-                    key = `${currentYear}_${currentMonth}_${currentType}`;
+                    // For 2024/2025
+                    const key = `${currentYear}_${currentMonth}`;
                     title = `${currentYear} ${currentMonth} - ${currentType}`;
+                    
+                    if (excelData[key]) {
+                        // Look for the specific sheet data
+                        if (excelData[key][currentType.toLowerCase()]) {
+                            data = excelData[key][currentType.toLowerCase()];
+                        } else if (excelData[key]['single'] || excelData[key]['couple']) {
+                            data = excelData[key][currentType.toLowerCase()] || [];
+                        } else if (Array.isArray(excelData[key])) {
+                            data = excelData[key];
+                        }
+                    }
                 }
                 
-                if (excelData[key]) {
-                    displayExcelData(excelData[key], title);
+                if (data && data.length > 0) {
+                    displayExcelData(data, title);
                 } else {
-                    // Try alternative key formats
-                    if (currentYear === '2023') {
-                        showMessage(`📄 No data found for ${title}. Please upload the ${currentYear}.xlsx file.`);
-                    } else {
-                        showMessage(`📄 No data found for ${title}. Please upload the ${currentYear}_${currentMonth}.xlsx file with '${currentType}' sheet.`);
-                    }
+                    const fileHint = currentYear === '2023' ? '2023.json' : `${currentYear}_${currentMonth}.json`;
+                    showMessage(`📄 No data found for ${title}.<br>Expected file: Data/${fileHint}<br>Make sure the file exists and contains data for '${currentType}'.`);
                 }
             }, 500);
         }
@@ -573,24 +685,39 @@
             }
             
             const headers = Object.keys(data[0]);
+            const rowCount = data.length;
             
             let html = `
                 <div class="excel-section">
-                    <div class="excel-header">${title}</div>
-                    <table class="excel-table">
-                        <thead>
-                            <tr>
-                                ${headers.map(header => `<th>${header}</th>`).join('')}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.map(row => `
+                    <div class="excel-header">
+                        ${title}
+                    </div>
+                    <div class="table-info">
+                        <span class="row-count">📊 ${rowCount} rows</span> • 
+                        <span>📋 ${headers.length} columns</span> • 
+                        <span>💡 Hover cells to expand, use scroll bars to navigate</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="excel-table">
+                            <thead>
                                 <tr>
-                                    ${headers.map(header => `<td>${row[header] || ''}</td>`).join('')}
+                                    <th style="width: 50px; text-align: center;">#</th>
+                                    ${headers.map(header => `<th title="${header}">${header}</th>`).join('')}
                                 </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                ${data.map((row, index) => `
+                                    <tr>
+                                        <td style="text-align: center; background-color: #f8f9fa; font-weight: 600;">${index + 1}</td>
+                                        ${headers.map(header => {
+                                            const cellValue = row[header] || '';
+                                            return `<td title="${cellValue}">${cellValue}</td>`;
+                                        }).join('')}
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             `;
             
@@ -624,17 +751,38 @@
             const results = [];
             const searchTermLower = searchTerm.toLowerCase();
             
+            // Search through all loaded data
             Object.keys(excelData).forEach(fileName => {
-                const data = excelData[fileName];
+                let dataToSearch = [];
+                
+                // Handle different data structures
+                if (Array.isArray(excelData[fileName])) {
+                    dataToSearch = excelData[fileName];
+                } else if (typeof excelData[fileName] === 'object') {
+                    // If it's an object with single/couple keys, search both
+                    if (excelData[fileName].single) {
+                        dataToSearch = dataToSearch.concat(excelData[fileName].single);
+                    }
+                    if (excelData[fileName].couple) {
+                        dataToSearch = dataToSearch.concat(excelData[fileName].couple);
+                    }
+                    // If no single/couple keys, treat as direct data
+                    if (dataToSearch.length === 0) {
+                        dataToSearch = Object.values(excelData[fileName]).flat();
+                    }
+                }
+                
                 const matchingRows = [];
                 
-                data.forEach(row => {
-                    const hasMatch = Object.values(row).some(value => 
-                        value && value.toString().toLowerCase().includes(searchTermLower)
-                    );
-                    
-                    if (hasMatch) {
-                        matchingRows.push(row);
+                dataToSearch.forEach(row => {
+                    if (row && typeof row === 'object') {
+                        const hasMatch = Object.values(row).some(value => 
+                            value && value.toString().toLowerCase().includes(searchTermLower)
+                        );
+                        
+                        if (hasMatch) {
+                            matchingRows.push(row);
+                        }
                     }
                 });
                 
@@ -741,8 +889,76 @@
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
-            showMessage('👋 Welcome! Upload your Excel files to get started, then use navigation or search functionality.');
+            loadPreloadedData();
         });
+
+        // Load pre-loaded JSON data files
+        function loadPreloadedData() {
+            const dataStatus = document.getElementById('dataStatus');
+            dataStatus.innerHTML = 'Loading data files...';
+            
+            // Calculate total files to load
+            totalDataFiles = Object.values(dataFiles).flat().length;
+            dataLoadedCount = 0;
+            
+            // Load all data files
+            Object.keys(dataFiles).forEach(year => {
+                dataFiles[year].forEach(fileName => {
+                    loadJSONFile(`Data/${fileName}`)
+                        .then(data => {
+                            const key = fileName.replace('.json', '');
+                            
+                            // Handle different JSON structures
+                            if (year === '2023') {
+                                // For 2023, store the entire data
+                                excelData[key] = data;
+                            } else {
+                                // For 2024/2025, data should have 'single' and 'couple' properties
+                                excelData[key] = data;
+                            }
+                            
+                            dataLoadedCount++;
+                            updateDataStatus();
+                        })
+                        .catch(error => {
+                            console.warn(`Could not load ${fileName}:`, error);
+                            dataLoadedCount++;
+                            updateDataStatus();
+                        });
+                });
+            });
+        }
+
+        function loadJSONFile(filePath) {
+            return fetch(filePath)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .catch(error => {
+                    throw new Error(`Failed to load ${filePath}: ${error.message}`);
+                });
+        }
+
+        function updateDataStatus() {
+            const dataStatus = document.getElementById('dataStatus');
+            const loadedFiles = Object.keys(excelData).length;
+            
+            if (dataLoadedCount >= totalDataFiles) {
+                if (loadedFiles > 0) {
+                    dataStatus.innerHTML = `✅ ${loadedFiles} data file(s) loaded successfully!`;
+                    dataStatus.style.color = '#155724';
+                } else {
+                    dataStatus.innerHTML = '⚠️ No pre-loaded data found. Please upload Excel files manually.';
+                    dataStatus.style.color = '#856404';
+                }
+            } else {
+                dataStatus.innerHTML = `📊 Loading... (${dataLoadedCount}/${totalDataFiles})`;
+                dataStatus.style.color = '#666';
+            }
+        }
     </script>
 </body>
 </html>
