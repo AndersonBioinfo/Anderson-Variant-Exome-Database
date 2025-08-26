@@ -318,11 +318,27 @@
                 </div>
             </div>
 
+            <div class="nav-level hidden" id="monthLevel">
+                <div class="nav-buttons">
+                    <button class="nav-btn" onclick="selectMonth('January')">🗓️ January</button>
+                    <button class="nav-btn" onclick="selectMonth('February')">🗓️ February</button>
+                    <button class="nav-btn" onclick="selectMonth('March')">🗓️ March</button>
+                    <button class="nav-btn" onclick="selectMonth('April')">🗓️ April</button>
+                    <button class="nav-btn" onclick="selectMonth('May')">🗓️ May</button>
+                    <button class="nav-btn" onclick="selectMonth('June')">🗓️ June</button>
+                    <button class="nav-btn" onclick="selectMonth('July')">🗓️ July</button>
+                    <button class="nav-btn" onclick="selectMonth('August')">🗓️ August</button>
+                    <button class="nav-btn" onclick="selectMonth('September')">🗓️ September</button>
+                    <button class="nav-btn" onclick="selectMonth('October')">🗓️ October</button>
+                    <button class="nav-btn" onclick="selectMonth('November')">🗓️ November</button>
+                    <button class="nav-btn" onclick="selectMonth('December')">🗓️ December</button>
+                </div>
+            </div>
+
             <div class="nav-level hidden" id="typeLevel">
                 <div class="nav-buttons">
                     <button class="nav-btn" onclick="selectType('single')">👤 Single</button>
                     <button class="nav-btn" onclick="selectType('couple')">👫 Couple</button>
-                    <button class="nav-btn" onclick="selectType('AF/POC')">🌍 AF/POC</button>
                 </div>
             </div>
         </div>
@@ -342,6 +358,7 @@
         let excelData = {};
         let currentCategory = null;
         let currentYear = null;
+        let currentMonth = null;
         let currentType = null;
 
         // Navigation functions
@@ -353,6 +370,19 @@
 
         function selectYear(year) {
             currentYear = year;
+            updateBreadcrumb();
+            
+            if (year === '2023') {
+                // For 2023, go directly to type selection
+                showTypeLevel();
+            } else {
+                // For 2024 and 2025, show month selection
+                showMonthLevel();
+            }
+        }
+
+        function selectMonth(month) {
+            currentMonth = month;
             updateBreadcrumb();
             showTypeLevel();
         }
@@ -366,6 +396,7 @@
         function resetNavigation() {
             currentCategory = null;
             currentYear = null;
+            currentMonth = null;
             currentType = null;
             updateBreadcrumb();
             showMainLevel();
@@ -375,17 +406,26 @@
         function showMainLevel() {
             document.getElementById('mainLevel').classList.remove('hidden');
             document.getElementById('yearLevel').classList.add('hidden');
+            document.getElementById('monthLevel').classList.add('hidden');
             document.getElementById('typeLevel').classList.add('hidden');
         }
 
         function showYearLevel() {
             document.getElementById('mainLevel').classList.add('hidden');
             document.getElementById('yearLevel').classList.remove('hidden');
+            document.getElementById('monthLevel').classList.add('hidden');
+            document.getElementById('typeLevel').classList.add('hidden');
+        }
+
+        function showMonthLevel() {
+            document.getElementById('yearLevel').classList.add('hidden');
+            document.getElementById('monthLevel').classList.remove('hidden');
             document.getElementById('typeLevel').classList.add('hidden');
         }
 
         function showTypeLevel() {
             document.getElementById('yearLevel').classList.add('hidden');
+            document.getElementById('monthLevel').classList.add('hidden');
             document.getElementById('typeLevel').classList.remove('hidden');
         }
 
@@ -399,6 +439,9 @@
             if (currentYear) {
                 html += ` → <span class="breadcrumb-item" onclick="resetToYear()">📅 ${currentYear}</span>`;
             }
+            if (currentMonth) {
+                html += ` → <span class="breadcrumb-item" onclick="resetToMonth()">🗓️ ${currentMonth}</span>`;
+            }
             if (currentType) {
                 html += ` → <span class="breadcrumb-item">🎯 ${currentType}</span>`;
             }
@@ -408,6 +451,7 @@
 
         function resetToCategory() {
             currentYear = null;
+            currentMonth = null;
             currentType = null;
             updateBreadcrumb();
             showYearLevel();
@@ -415,6 +459,19 @@
         }
 
         function resetToYear() {
+            currentMonth = null;
+            currentType = null;
+            updateBreadcrumb();
+            
+            if (currentYear === '2023') {
+                showTypeLevel();
+            } else {
+                showMonthLevel();
+            }
+            clearResults();
+        }
+
+        function resetToMonth() {
             currentType = null;
             updateBreadcrumb();
             showTypeLevel();
@@ -439,13 +496,24 @@
                 reader.onload = function(e) {
                     try {
                         const workbook = XLSX.read(e.target.result, { type: 'binary' });
-                        const sheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[sheetName];
-                        const data = XLSX.utils.sheet_to_json(worksheet);
-                        
-                        // Store data with filename as key
                         const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
-                        excelData[fileName] = data;
+                        
+                        // Check if this is a multi-sheet file (2024/2025 format)
+                        if (workbook.SheetNames.length > 1) {
+                            // For 2024/2025 files with multiple sheets
+                            workbook.SheetNames.forEach(sheetName => {
+                                const worksheet = workbook.Sheets[sheetName];
+                                const data = XLSX.utils.sheet_to_json(worksheet);
+                                const key = `${fileName}_${sheetName.toLowerCase()}`;
+                                excelData[key] = data;
+                            });
+                        } else {
+                            // For 2023 single sheet file or other single sheet files
+                            const sheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[sheetName];
+                            const data = XLSX.utils.sheet_to_json(worksheet);
+                            excelData[fileName] = data;
+                        }
                         
                         processedFiles++;
                         if (processedFiles === files.length) {
@@ -466,16 +534,32 @@
 
         // Data loading and display functions
         function loadExcelData() {
-            const key = `${currentYear}_${currentType}`;
             showLoading();
             
             setTimeout(() => {
                 hideLoading();
                 
-                if (excelData[key]) {
-                    displayExcelData(excelData[key], `${currentYear} - ${currentType}`);
+                let key, title;
+                
+                if (currentYear === '2023') {
+                    // For 2023, just use the year as key (single Excel file)
+                    key = currentYear;
+                    title = `${currentYear} - ${currentType}`;
                 } else {
-                    showMessage(`📄 No data found for ${currentYear} - ${currentType}. Please upload the corresponding Excel file.`);
+                    // For 2024/2025, use month_type format
+                    key = `${currentYear}_${currentMonth}_${currentType}`;
+                    title = `${currentYear} ${currentMonth} - ${currentType}`;
+                }
+                
+                if (excelData[key]) {
+                    displayExcelData(excelData[key], title);
+                } else {
+                    // Try alternative key formats
+                    if (currentYear === '2023') {
+                        showMessage(`📄 No data found for ${title}. Please upload the ${currentYear}.xlsx file.`);
+                    } else {
+                        showMessage(`📄 No data found for ${title}. Please upload the ${currentYear}_${currentMonth}.xlsx file with '${currentType}' sheet.`);
+                    }
                 }
             }, 500);
         }
