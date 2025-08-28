@@ -517,19 +517,30 @@
             if (currentYear === '2023') {
                 availableSheetNames = availableSheets['2023'] || [];
             } else {
-                // Handle combined sheets from multiple files for March 2024
-                if (currentYear === '2024' && currentMonth === 'March') {
-                    // Combine sheets from all March files
-                    const marchKeys = Object.keys(availableSheets).filter(key => 
-                        key.startsWith('2024_March'));
+                // Handle combined sheets from multiple files for March or regular files for other months
+                if (currentMonth === 'March') {
+                    console.log(`Looking for March data for year: ${currentYear}`);
                     
+                    // Find all March-related keys for the current year
+                    const marchKeys = Object.keys(excelData).filter(key => {
+                        const parts = key.split('_');
+                        return parts[0] === currentYear && parts[1] === 'March';
+                    });
+                    
+                    console.log(`Found March keys: ${marchKeys}`);
+                    
+                    // Combine sheets from all March files
                     marchKeys.forEach(key => {
-                        availableSheetNames = availableSheetNames.concat(availableSheets[key] || []);
+                        const sheets = availableSheets[key] || [];
+                        console.log(`Sheets in ${key}:`, sheets);
+                        availableSheetNames = availableSheetNames.concat(sheets);
                     });
                     
                     // Remove duplicates
                     availableSheetNames = [...new Set(availableSheetNames)];
+                    console.log(`Combined March sheets:`, availableSheetNames);
                 } else {
+                    // Regular month handling
                     const fileKey = `${currentYear}_${currentMonth}`;
                     availableSheetNames = availableSheets[fileKey] || [];
                 }
@@ -557,7 +568,20 @@
                     typeButtons.appendChild(button);
                 });
             } else {
-                typeButtons.innerHTML = `<p style="text-align: center; color: #666; padding: 20px;">No sheet data available for this selection</p>`;
+                const errorMsg = currentMonth === 'March' ? 
+                    `No sheet data available for ${currentYear} March. Check console for debugging info.` :
+                    `No sheet data available for this selection`;
+                    
+                typeButtons.innerHTML = `<p style="text-align: center; color: #666; padding: 20px;">${errorMsg}</p>`;
+                
+                // Add debugging info for March
+                if (currentMonth === 'March') {
+                    console.log('Debugging March issue:');
+                    console.log('currentYear:', currentYear);
+                    console.log('currentMonth:', currentMonth);
+                    console.log('excelData keys:', Object.keys(excelData));
+                    console.log('availableSheets:', availableSheets);
+                }
             }
             
             document.getElementById('yearLevel').classList.add('hidden');
@@ -623,6 +647,7 @@
                 
                 let sheetData = null;
                 let title = '';
+                let sourceFile = '';
                 
                 if (currentYear === '2023') {
                     const key = '2023';
@@ -630,42 +655,66 @@
                     
                     if (excelData[key] && excelData[key][currentType]) {
                         sheetData = excelData[key][currentType];
+                        sourceFile = '2023.json';
                     }
                 } else {
                     title = `${currentYear} ${currentMonth} - ${currentType}`;
                     
-                    // Handle special case for March 2024 with multiple files
-                    if (currentYear === '2024' && currentMonth === 'March') {
-                        // Look for the sheet in all March files
-                        const marchKeys = Object.keys(excelData).filter(key => 
-                            key.startsWith('2024_March'));
+                    // Handle special case for March with multiple files
+                    if (currentMonth === 'March') {
+                        console.log(`Looking for sheet "${currentType}" in March files for ${currentYear}`);
+                        
+                        // Look for the sheet in all March files for the current year
+                        const marchKeys = Object.keys(excelData).filter(key => {
+                            const parts = key.split('_');
+                            return parts[0] === currentYear && parts[1] === 'March';
+                        });
+                        
+                        console.log(`Searching in March keys: ${marchKeys}`);
                         
                         for (const key of marchKeys) {
+                            console.log(`Checking ${key} for sheet "${currentType}"`);
+                            console.log(`Available sheets in ${key}:`, Object.keys(excelData[key] || {}));
+                            
                             if (excelData[key] && excelData[key][currentType]) {
                                 sheetData = excelData[key][currentType];
+                                sourceFile = `${key}.json`;
+                                console.log(`Found sheet "${currentType}" in ${key}`);
                                 break;
                             }
                         }
+                        
+                        if (!sheetData) {
+                            console.log(`Sheet "${currentType}" not found in any March file`);
+                        }
                     } else {
+                        // Regular month handling
                         const key = `${currentYear}_${currentMonth}`;
                         if (excelData[key] && excelData[key][currentType]) {
                             sheetData = excelData[key][currentType];
+                            sourceFile = `${key}.json`;
                         }
                     }
                 }
                 
                 if (sheetData && sheetData.data && sheetData.data.length > 0) {
-                    displayExcelDataWithFormatting(sheetData, title);
+                    // Add source file info to title
+                    const fullTitle = sourceFile ? `${title} (from ${sourceFile})` : title;
+                    displayExcelDataWithFormatting(sheetData, fullTitle);
                 } else {
                     let fileHint = '';
                     if (currentYear === '2023') {
                         fileHint = '2023.json';
-                    } else if (currentYear === '2024' && currentMonth === 'March') {
-                        fileHint = '2024_March_*.json files';
+                    } else if (currentMonth === 'March') {
+                        fileHint = `${currentYear}_March*.json files`;
                     } else {
                         fileHint = `${currentYear}_${currentMonth}.json`;
                     }
-                    showMessage(`No data found for ${title}.<br>Expected: Data/${fileHint} with sheet '${currentType}'`);
+                    
+                    const debugInfo = currentMonth === 'March' ? 
+                        '<br><small>Check browser console for detailed debugging information.</small>' : '';
+                    
+                    showMessage(`No data found for ${title}.<br>Expected: Data/${fileHint} with sheet '${currentType}'${debugInfo}`);
                 }
             }, 500);
         }
@@ -1024,11 +1073,10 @@
             const dataStatus = document.getElementById('dataStatus');
             dataStatus.innerHTML = 'Discovering available data files...';
             
-            // Updated file list to include multiple March files
-            const possibleFiles = [
+            // Base files to check
+            const baseFiles = [
                 '2023.json',
-                '2024_January.json', '2024_February.json', 
-                '2024_March.json', '2024_March_1.json', '2024_March_2.json', '2024_March_3.json', // Multiple March files
+                '2024_January.json', '2024_February.json', '2024_March.json',
                 '2024_April.json', '2024_May.json', '2024_June.json',
                 '2024_July.json', '2024_August.json', '2024_September.json',
                 '2024_October.json', '2024_November.json', '2024_December.json',
@@ -1038,14 +1086,26 @@
                 '2025_October.json', '2025_November.json', '2025_December.json'
             ];
             
+            // Add additional March split files (check for up to 10 splits)
+            const marchSplitFiles = [];
+            for (let i = 1; i <= 10; i++) {
+                marchSplitFiles.push(`2024_March_${i}.json`);
+                marchSplitFiles.push(`2025_March_${i}.json`);
+            }
+            
+            const allPossibleFiles = [...baseFiles, ...marchSplitFiles];
+            
             dataLoadedCount = 0;
             let totalChecked = 0;
+            let loadPromises = [];
             
-            possibleFiles.forEach(fileName => {
-                loadJSONFile(`Data/${fileName}`)
+            allPossibleFiles.forEach(fileName => {
+                const promise = loadJSONFile(`Data/${fileName}`)
                     .then(data => {
                         const key = fileName.replace('.json', '');
                         excelData[key] = data;
+                        
+                        console.log(`Successfully loaded: ${fileName}`, Object.keys(data));
                         
                         // Handle file availability tracking
                         if (key === '2023') {
@@ -1054,14 +1114,17 @@
                         } else {
                             const parts = key.split('_');
                             const year = parts[0];
-                            const month = parts[1];
+                            let month = parts[1];
+                            
+                            // Handle split files (e.g., March_1, March_2)
+                            if (parts.length > 2 && parts[1] === 'March') {
+                                month = 'March';
+                            }
                             
                             if (!availableFiles[year]) availableFiles[year] = [];
                             
-                            // For March files, only add "March" once to available months
-                            if (month === 'March' && !availableFiles[year].includes('March')) {
-                                availableFiles[year].push('March');
-                            } else if (month !== 'March' && !availableFiles[year].includes(month)) {
+                            // Add month to available files if not already present
+                            if (!availableFiles[year].includes(month)) {
                                 availableFiles[year].push(month);
                             }
                         }
@@ -1069,22 +1132,27 @@
                         // Track available sheets
                         if (typeof data === 'object' && !Array.isArray(data)) {
                             availableSheets[key] = Object.keys(data);
+                            console.log(`Available sheets for ${key}:`, Object.keys(data));
                         }
                         
                         dataLoadedCount++;
-                        updateDataStatus();
+                        return true;
                     })
                     .catch(error => {
-                        totalChecked++;
-                        if (totalChecked + dataLoadedCount >= possibleFiles.length) {
-                            updateDataStatus();
-                        }
+                        // File doesn't exist or couldn't load - this is normal
+                        return false;
                     });
-                    
-                totalChecked++;
+                
+                loadPromises.push(promise);
             });
             
-            setTimeout(updateDataStatus, 2000);
+            // Wait for all promises to complete
+            Promise.all(loadPromises).then(() => {
+                console.log('All files checked. Loaded files:', Object.keys(excelData));
+                console.log('Available files structure:', availableFiles);
+                console.log('Available sheets structure:', availableSheets);
+                updateDataStatus();
+            });
         }
 
         function loadJSONFile(filePath) {
