@@ -154,7 +154,7 @@
             border: 1px solid #e0e0e0;
             border-radius: 10px;
             overflow: hidden;
-            max-height: 600px;
+            max-height: 600px; /* Set maximum height for scrolling */
         }
 
         .excel-header {
@@ -172,14 +172,12 @@
             max-height: 550px;
             overflow-y: auto;
             overflow-x: auto;
-            width: 100%;
-            -webkit-overflow-scrolling: touch;
         }
 
         .excel-table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 800px;
+            min-width: 600px; /* Ensure table doesn't get too compressed */
         }
 
         .excel-table th,
@@ -187,8 +185,7 @@
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #e0e0e0;
-            white-space: nowrap;
-            min-width: 100px;
+            white-space: nowrap; /* Prevent text wrapping */
         }
 
         .excel-table th {
@@ -205,7 +202,7 @@
         }
 
         .excel-table td {
-            max-width: 250px;
+            max-width: 200px;
             overflow: hidden;
             text-overflow: ellipsis;
         }
@@ -214,40 +211,26 @@
             white-space: normal;
             max-width: none;
             word-wrap: break-word;
-            position: relative;
-            z-index: 1;
         }
 
-        /* Enhanced scrollbar styling for better visibility */
+        /* Custom scrollbar styling */
         .table-container::-webkit-scrollbar {
-            width: 12px;
-            height: 12px;
+            width: 8px;
+            height: 8px;
         }
 
         .table-container::-webkit-scrollbar-track {
             background: #f1f1f1;
-            border-radius: 6px;
-            border: 1px solid #ddd;
+            border-radius: 4px;
         }
 
         .table-container::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 6px;
-            border: 1px solid #5a6fd8;
+            background: #667eea;
+            border-radius: 4px;
         }
 
         .table-container::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, #5a6fd8 0%, #6b5b95 100%);
-        }
-
-        .table-container::-webkit-scrollbar-corner {
-            background: #f1f1f1;
-        }
-
-        /* Fallback for Firefox */
-        .table-container {
-            scrollbar-width: auto;
-            scrollbar-color: #667eea #f1f1f1;
+            background: #5a6fd8;
         }
 
         .file-upload {
@@ -327,17 +310,6 @@
             
             .search-box {
                 flex-direction: column;
-            }
-
-            .excel-table {
-                min-width: 600px;
-            }
-
-            .excel-table th,
-            .excel-table td {
-                min-width: 80px;
-                font-size: 14px;
-                padding: 8px;
             }
         }
     </style>
@@ -875,16 +847,213 @@
                 html += `
                     <div class="excel-section">
                         <div class="excel-header">${result.fileName} (${result.rows.length} matches)</div>
-                        <div class="table-info">
-                            <span class="row-count">📊 ${result.rows.length} matches</span> • 
-                            <span>📋 ${headers.length} columns</span> • 
-                            <span>💡 Hover cells to expand, use scroll bars to navigate</span>
-                        </div>
-                        <div class="table-container">
-                            <table class="excel-table">
-                                <thead>
+                        <div class="table-container" style="max-height:500px; overflow-x:auto; overflow-y:auto;">
+                        <table class="excel-table">
+                            <thead>
+                                <tr>
+                                    ${headers.map(header => `<th>${header}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${result.rows.map(row => `
                                     <tr>
-                                        <th style="width: 50px; text-align: center;">#</th>
-                                        ${headers.map(header => `<th title="${header}">${header}</th>`).join('')}
+                                        ${headers.map(header => {
+                                            const value = row[header] || '';
+                                            const highlightedValue = highlightSearchTerm(value.toString(), searchTerm);
+                                            return `<td>${highlightedValue}</td>`;
+                                        }).join('')}
                                     </tr>
-                                </thead>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            });
+            
+            results.innerHTML = html;
+        }
+
+        function highlightSearchTerm(text, searchTerm) {
+            const regex = new RegExp(`(${escapeRegExp(searchTerm)})`, 'gi');
+            return text.replace(regex, '<mark style="background-color: #ffeb3b; padding: 2px 4px; border-radius: 3px;">$1</mark>');
+        }
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // Utility functions
+        function showLoading() {
+            document.getElementById('loading').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        function showMessage(message) {
+            const results = document.getElementById('results');
+            results.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #666;">
+                    <h3>${message}</h3>
+                </div>
+            `;
+        }
+
+        function clearResults() {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+        }
+
+        // Allow search on Enter key
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPreloadedData();
+        });
+
+        // Load pre-loaded JSON data files
+        function loadPreloadedData() {
+            const dataStatus = document.getElementById('dataStatus');
+            dataStatus.innerHTML = 'Discovering available data files...';
+            
+            // List of all possible files to check
+            const possibleFiles = [
+                '2023.json',
+                // 2024 months
+                '2024_January.json', '2024_February.json', '2024_March.json',
+                '2024_April.json', '2024_May.json', '2024_June.json',
+                '2024_July.json', '2024_August.json', '2024_September.json',
+                '2024_October.json', '2024_November.json', '2024_December.json',
+                // 2025 months
+                '2025_January.json', '2025_February.json', '2025_March.json',
+                '2025_April.json', '2025_May.json', '2025_June.json',
+                '2025_July.json', '2025_August.json', '2025_September.json',
+                '2025_October.json', '2025_November.json', '2025_December.json'
+            ];
+            
+            dataLoadedCount = 0;
+            let totalChecked = 0;
+            
+            // Check which files actually exist and load them
+            possibleFiles.forEach(fileName => {
+                loadJSONFile(`Data/${fileName}`)
+                    .then(data => {
+                        const key = fileName.replace('.json', '');
+                        excelData[key] = data;
+                        
+                        // Track available files by year and month
+                        if (key === '2023') {
+                            if (!availableFiles['2023']) availableFiles['2023'] = [];
+                            availableFiles['2023'].push('2023');
+                        } else {
+                            const [year, month] = key.split('_');
+                            if (!availableFiles[year]) availableFiles[year] = [];
+                            availableFiles[year].push(month);
+                        }
+                        
+                        // Track available sheets for this file
+                        if (typeof data === 'object' && !Array.isArray(data)) {
+                            availableSheets[key] = Object.keys(data);
+                        }
+                        
+                        dataLoadedCount++;
+                        updateDataStatus();
+                    })
+                    .catch(error => {
+                        // File doesn't exist - this is normal, just skip it
+                        totalChecked++;
+                        if (totalChecked + dataLoadedCount >= possibleFiles.length) {
+                            updateDataStatus();
+                        }
+                    });
+                    
+                totalChecked++;
+            });
+            
+            // Update status after a short delay to ensure all requests are processed
+            setTimeout(updateDataStatus, 2000);
+        }
+
+        function loadJSONFile(filePath) {
+            return fetch(filePath)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .catch(error => {
+                    throw new Error(`Failed to load ${filePath}: ${error.message}`);
+                });
+        }
+
+        function updateDataStatus() {
+            const dataStatus = document.getElementById('dataStatus');
+            const loadedFiles = Object.keys(excelData).length;
+            
+            if (loadedFiles > 0) {
+                // Show summary of available data
+                let summary = `✅ ${loadedFiles} data file(s) loaded: `;
+                
+                if (availableFiles['2023']) {
+                    summary += '2023 ';
+                }
+                if (availableFiles['2024']) {
+                    summary += `2024(${availableFiles['2024'].length} months) `;
+                }
+                if (availableFiles['2025']) {
+                    summary += `2025(${availableFiles['2025'].length} months)`;
+                }
+                
+                dataStatus.innerHTML = summary;
+                dataStatus.style.color = '#155724';
+            } else {
+                dataStatus.innerHTML = '⚠️ No data files found in Data/ folder. Please upload your JSON files.';
+                dataStatus.style.color = '#856404';
+            }
+        }
+
+        function showMonthLevel() {
+            const monthLevel = document.getElementById('monthLevel');
+            const navButtons = monthLevel.querySelector('.nav-buttons');
+            
+            // Clear existing buttons
+            navButtons.innerHTML = '';
+            
+            // Only show months that have data files
+            const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+            
+            const availableMonths = availableFiles[currentYear] || [];
+            
+            months.forEach(month => {
+                if (availableMonths.includes(month)) {
+                    const button = document.createElement('button');
+                    button.className = 'nav-btn';
+                    button.onclick = () => selectMonth(month);
+                    button.innerHTML = `🗓️ ${month}`;
+                    navButtons.appendChild(button);
+                }
+            });
+            
+            if (availableMonths.length === 0) {
+                navButtons.innerHTML = `
+                    <p style="text-align: center; color: #666; padding: 20px;">
+                        No data available for ${currentYear}
+                    </p>
+                `;
+            }
+            
+            document.getElementById('yearLevel').classList.add('hidden');
+            monthLevel.classList.remove('hidden');
+            document.getElementById('typeLevel').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
